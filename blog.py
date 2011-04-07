@@ -80,7 +80,8 @@ class HomeHandler(BaseHandler):
             if not self.current_user or self.current_user.administrator:
                 self.redirect("/compose")
                 return
-        self.render("home.html", snippets=snippets)
+        snippet = Snippet(language='Python', raw_content='asd', title='asd')
+        self.render("home.html", snippets=snippets, snippet=snippet)
 
 class SnippetHandler(BaseHandler):
     def get(self, slug):
