@@ -1,0 +1,8 @@
+<div class="snippet">
+  <h1><a href="/snippet/{{ snippet.slug }}">{{ escape(snippet.title) }}</a></h1>
+  <div class="date">{{ locale.format_date(snippet.published, full_format=True, shorter=True) }}</div>
+  <div class="body">{{ snippet.html }}</div>
+  {% if current_user and current_user.administrator %}
+    <div class="admin"><a href="/compose?key={{ str(snippet.key()) }}">{{ _("Edit this post") }}</a></div>
+  {% end %}
+</div>

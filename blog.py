@@ -27,16 +27,16 @@ from google.appengine.api import users
 from google.appengine.ext import db
 
 
-class Entry(db.Model):
-    """A single blog entry."""
-    author = db.UserProperty()
+class Snippet(db.Model):
+    """A single snippet."""
     title = db.StringProperty(required=True)
-    slug = db.StringProperty(required=True)
-    markdown = db.TextProperty(required=True)
-    html = db.TextProperty(required=True)
+    raw_content = db.TextProperty(required=True)
+    tags = db.StringListProperty()
+    category = db.StringListProperty()
+    author = db.UserProperty()
+    language = db.StringProperty(required=True)
     published = db.DateTimeProperty(auto_now_add=True)
     updated = db.DateTimeProperty(auto_now=True)
-
 
 def administrator(method):
     """Decorate with this method to restrict to site admins."""
@@ -75,30 +75,29 @@ class BaseHandler(tornado.web.RequestHandler):
 
 class HomeHandler(BaseHandler):
     def get(self):
-        entries = db.Query(Entry).order('-published').fetch(limit=5)
-        if not entries:
+        snippets = db.Query(Snippet).order('-published').fetch(limit=5)
+        if not snippets:
             if not self.current_user or self.current_user.administrator:
                 self.redirect("/compose")
                 return
-        self.render("home.html", entries=entries)
+        self.render("home.html", snippets=snippets)
 
-
-class EntryHandler(BaseHandler):
+class SnippetHandler(BaseHandler):
     def get(self, slug):
-        entry = db.Query(Entry).filter("slug =", slug).get()
-        if not entry: raise tornado.web.HTTPError(404)
-        self.render("entry.html", entry=entry)
+        snippet = db.Query(Snippet).filter("slug =", slug).get()
+        if not snippet: raise tornado.web.HTTPError(404)
+        self.render("snippet.html", entry=entry)
 
 
 class ArchiveHandler(BaseHandler):
     def get(self):
-        entries = db.Query(Entry).order('-published')
+        entries = db.Query(Snippet).order('-published')
         self.render("archive.html", entries=entries)
 
 
 class FeedHandler(BaseHandler):
     def get(self):
-        entries = db.Query(Entry).order('-published').fetch(limit=10)
+        entries = db.Query(Snippet).order('-published').fetch(limit=10)
         self.set_header("Content-Type", "application/atom+xml")
         self.render("feed.xml", entries=entries)
 
@@ -107,56 +106,56 @@ class ComposeHandler(BaseHandler):
     @administrator
     def get(self):
         key = self.get_argument("key", None)
-        entry = Entry.get(key) if key else None
-        self.render("compose.html", entry=entry)
+        snippet = Snippet.get(key) if key else None
+        self.render("compose.html", snippet=snippet)
 
     @administrator
     def post(self):
         key = self.get_argument("key", None)
         if key:
-            entry = Entry.get(key)
-            entry.title = self.get_argument("title")
-            entry.markdown = self.get_argument("markdown")
-            entry.html = markdown.markdown(self.get_argument("markdown"))
+            snippet = Snippet.get(key)
+            snippet.title = self.get_argument("title")
+            snippet.markdown = self.get_argument("markdown")
+            snippet.html = markdown.markdown(self.get_argument("markdown"))
         else:
             title = self.get_argument("title")
             slug = unicodedata.normalize("NFKD", title).encode(
                 "ascii", "ignore")
             slug = re.sub(r"[^\w]+", " ", slug)
             slug = "-".join(slug.lower().strip().split())
-            if not slug: slug = "entry"
+            if not slug: slug = "snippet"
             while True:
-                existing = db.Query(Entry).filter("slug =", slug).get()
+                existing = db.Query(Snippet).filter("slug =", slug).get()
                 if not existing or str(existing.key()) == key:
                     break
                 slug += "-2"
-            entry = Entry(
+            snippet = Snippet(
                 author=self.current_user,
                 title=title,
                 slug=slug,
                 markdown=self.get_argument("markdown"),
                 html=markdown.markdown(self.get_argument("markdown")),
             )
-        entry.put()
-        self.redirect("/entry/" + entry.slug)
+        snippet.put()
+        self.redirect("/snippet/" + snippet.slug)
 
 
-class EntryModule(tornado.web.UIModule):
-    def render(self, entry):
-        return self.render_string("modules/entry.html", entry=entry)
+class SnippetModule(tornado.web.UIModule):
+    def render(self, snippet):
+        return self.render_string("modules/snippet.html", entry=entry)
 
 
 settings = {
-    "blog_title": u"Tornado Blog",
+    "blog_title": u"PySnippets",
     "template_path": os.path.join(os.path.dirname(__file__), "templates"),
-    "ui_modules": {"Entry": EntryModule},
+    "ui_modules": {"Snippet": SnippetModule},
     "xsrf_cookies": True,
 }
 application = tornado.wsgi.WSGIApplication([
     (r"/", HomeHandler),
     (r"/archive", ArchiveHandler),
     (r"/feed", FeedHandler),
-    (r"/entry/([^/]+)", EntryHandler),
+    (r"/snippet/([^/]+)", SnippetHandler),
     (r"/compose", ComposeHandler),
 ], **settings)
 
